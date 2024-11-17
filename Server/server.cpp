@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <sys/stat.h>
 #include <QStorageInfo>
+#include <sys/statvfs.h>
 
 constexpr auto kExecutableExtensions = {".APP", ".BAT", ".BIN", ".CAB", ".COM", ".CMD", ".COMMAND", ".CPL", ".CSH", ".EX_", ".EXE", ".GADGET", ".INF", ".INS", ".INX", ".ISU", ".JOB",
                                         ".JSE", ".KSH", ".LNK", ".MSC", ".MSI", ".MSP", ".MST", ".OSX", ".OUT", ".PAF", ".PIF", ".PS1", ".REG", ".RGS", ".RUN", ".SCR", ".SCT",
@@ -273,7 +274,7 @@ QString Server::read_file(QString path, int64_t size, int64_t off)
         QByteArray buf = file.read(size);
 
         qDebug() << "read_file: response " << buf.size();
-        qobject_cast<QWebSocket *>(sender())->sendBinaryMessage(buf);
+        qobject_cast<QWebSocket *>(sender())->sendBinaryMessage(qCompress(buf, 2));
         return "";
     }
 
@@ -337,6 +338,9 @@ QJsonObject Server::stat_to_json(const QFileInfo& info)
     struct stat file_stat;
     stat(info.absoluteFilePath().toStdString().c_str(), &file_stat);
 
+    struct statvfs file_vfsstat;
+    statvfs(info.absoluteFilePath().toStdString().c_str(), &file_vfsstat);
+
     QJsonObject result;
     result["st_dev"] = (qint64)file_stat.st_dev;
     result["st_ino"] = (qint64)file_stat.st_ino;
@@ -389,7 +393,7 @@ QJsonObject Server::stat_to_json(const QFileInfo& info)
     result["st_mode_exec"] = info.isExecutable();
     result["st_nlink"] = (qint64)file_stat.st_nlink;
     result["st_size"] = (qint64)file_stat.st_size;
-    result["st_blksize"] = kBlockSize;
+    result["st_blksize"] = (qint64)file_vfsstat.f_bsize;
     result["st_blocks"] = (qint64)(file_stat.st_size + kBlockSize - 1) / kBlockSize;
     result["st_atime_tv_sec"] = 0;
     result["st_atime_tv_nsec"] = (qint64)file_stat.st_atime;
